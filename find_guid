@@ -1,0 +1,44 @@
+#!/bin/bash
+
+MYSQL_DRIVER=$(which mysql)
+DBHOST=$(head -n 12 /etc/odbc.ini | awk -F "=" '/Server/ {print $2}')
+DBUSER=$(head -n 12 /etc/odbc.ini | awk -F "=" '/User/ {print $2}')
+DATABASE=$(head -n 12 /etc/odbc.ini | awk -F "=" '/Database/ {print $2}' )
+DBPASS=$(head -n 12 /etc/odbc.ini | awk -F "=" '/Password/ {print $2}' )
+
+if [ -z "$DBHOST" ]; then
+    DBHOST="localhost"
+fi
+
+if [ -z "$DBUSER" ]; then
+    DBUSER="ccuser"
+fi
+
+if [ -z "$DATABASE" ]; then
+    DATABASE="ccrepo"
+fi
+
+if [ -z "$DBPASS" ]; then
+    if [ -z "$1" ]; then
+        echo "Database password is empty"
+    else
+        DBPASS=$1
+    fi
+fi
+
+export MYSQL_PWD=$DBPASS
+MYSQL_MODIFIER="--skip-column-names -B -se"
+MYSQL="${MYSQL_DRIVER} ${DATABASE} -h${DBHOST} -u${DBUSER} ${MYSQL_MODIFIER} "
+
+
+SQL="SELECT date_format(dateprocessed, '%Y%m%d'), guid, value1, value2, value3 FROM ccrepo.dispositions_repo WHERE callerid = '$1'"
+GUID=$($MYSQL "$SQL")
+
+echo "$GUID"
+echo -e "\n"
+
+# Iterar sobre cada línea de resultados
+while IFS=$'\t' read -r date guid value1 value2 value3; do
+    # COMANDO SOX
+    echo "sox /var/spool/asterisk/monitor/$date/$guid.gsm -e signed-integer /root/$1-$guid.wav"
+done <<< "$GUID"
